@@ -1,4 +1,6 @@
 import { get, head, list, put } from "@vercel/blob";
+import { revalidatePath } from "next/cache";
+import { cache } from "react";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { getEmptySiteData, getSeedPortfolio, mergeContent, mergeTheme } from "./seed";
@@ -8,8 +10,6 @@ const BLOB_PATH = "tidespool/site-data.json";
 const BLOB_ACCESS = "private" as const;
 const STORAGE_VERSION = "private-store-v3";
 const LOCAL_DATA_PATH = path.join(process.cwd(), "data", "site-data.json");
-
-let memoryCache: SiteData | null = null;
 
 function getBlobClientOptions(): { token?: string; storeId?: string } {
   // On Vercel, prefer OIDC auth (automatic). Passing BLOB_READ_WRITE_TOKEN in
@@ -99,7 +99,6 @@ async function readLocalData(): Promise<SiteData> {
 async function writeLocalData(data: SiteData): Promise<void> {
   await mkdir(path.dirname(LOCAL_DATA_PATH), { recursive: true });
   await writeFile(LOCAL_DATA_PATH, JSON.stringify(data, null, 2), "utf-8");
-  memoryCache = data;
 }
 
 async function readBlobData(): Promise<SiteData | null> {
@@ -179,7 +178,6 @@ async function writeBlobData(data: SiteData): Promise<{ ok: boolean; error?: str
   try {
     await put(BLOB_PATH, JSON.stringify(data), getPrivateBlobPutOptions());
 
-    memoryCache = data;
     return { ok: true };
   } catch (error) {
     return {
@@ -189,37 +187,36 @@ async function writeBlobData(data: SiteData): Promise<{ ok: boolean; error?: str
   }
 }
 
-export async function getSiteData(): Promise<SiteData> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
+export const getSiteData = cache(async (): Promise<SiteData> => {
   const blobData = await readBlobData();
   if (blobData) {
-    memoryCache = blobData;
     return blobData;
   }
 
   if (isRunningOnVercel()) {
-    memoryCache = getEmptySiteData();
-    return memoryCache;
+    return getEmptySiteData();
   }
 
-  const localData = await readLocalData();
-  memoryCache = localData;
-  return localData;
+  return readLocalData();
+});
+
+function revalidatePublicSite() {
+  revalidatePath("/");
 }
 
 export async function saveSiteData(data: SiteData): Promise<{ persisted: boolean; saveError?: string }> {
   const normalized = normalizeSiteData(data);
-  memoryCache = normalized;
 
   if (isRunningOnVercel()) {
     const result = await writeBlobData(normalized);
+    if (result.ok) {
+      revalidatePublicSite();
+    }
     return { persisted: result.ok, saveError: result.error };
   }
 
   await writeLocalData(normalized);
+  revalidatePublicSite();
   return { persisted: true };
 }
 

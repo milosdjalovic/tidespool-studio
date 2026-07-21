@@ -9,6 +9,9 @@ import { Services } from "@/components/Services";
 import { SiteThemeStyles } from "@/components/SiteThemeStyles";
 import { getPortfolioItems, getSiteContent, getSiteTheme } from "@/lib/storage";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export default async function Home() {
   const [portfolioItems, content, theme] = await Promise.all([
     getPortfolioItems(),
