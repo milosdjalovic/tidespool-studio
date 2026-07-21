@@ -2,16 +2,18 @@
 
 import { motion } from "framer-motion";
 import { ease } from "@/lib/motion";
+import type { SiteContent } from "@/lib/types";
 
-export function Hero() {
+type HeroProps = {
+  content: SiteContent["hero"];
+};
+
+export function Hero({ content }: HeroProps) {
   return (
     <section className="section-dark relative flex min-h-[92svh] items-end overflow-hidden">
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=2400&q=80')",
-        }}
+        style={{ backgroundImage: `url('${content.backgroundImage}')` }}
       />
       <div className="absolute inset-0 bg-background-dark/50" />
       <div className="absolute inset-0 bg-gradient-to-t from-background-dark via-background-dark/40 to-background-dark/20" />
@@ -23,7 +25,7 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease }}
         >
-          Video & Photography Studio
+          {content.eyebrow}
         </motion.p>
 
         <motion.h1
@@ -32,7 +34,7 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease }}
         >
-          Visual stories that move people
+          {content.title}
         </motion.h1>
 
         <motion.p
@@ -41,8 +43,7 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2, ease }}
         >
-          TideSpool Studios partners with brands and creators to produce cinematic video and
-          photography with clarity, emotion, and purpose.
+          {content.description}
         </motion.p>
 
         <motion.div
@@ -52,10 +53,10 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.3, ease }}
         >
           <a href="#work" className="btn-primary-light">
-            View our work
+            {content.primaryButton}
           </a>
           <a href="#contact" className="btn-secondary-light">
-            Request a quote
+            {content.secondaryButton}
           </a>
         </motion.div>
       </div>

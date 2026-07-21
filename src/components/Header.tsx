@@ -12,7 +12,7 @@ const navItems = [
   { href: "#contact", label: "Contact" },
 ];
 
-export function Header() {
+export function Header({ siteName }: { siteName: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [solid, setSolid] = useState(false);
 
@@ -46,7 +46,7 @@ export function Header() {
               solid ? "text-foreground" : "text-foreground-light"
             }`}
           >
-            TideSpool Studios
+            {siteName}
           </Link>
 
           <nav className="hidden items-center gap-8 lg:flex">

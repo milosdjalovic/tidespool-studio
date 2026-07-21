@@ -1,8 +1,8 @@
 import { head, put } from "@vercel/blob";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
-import { getEmptySiteData, getSeedPortfolio } from "./seed";
-import type { ContactMessage, PortfolioItem, SiteData } from "./types";
+import { getEmptySiteData, getSeedPortfolio, mergeContent, mergeTheme } from "./seed";
+import type { ContactMessage, PortfolioItem, SiteContent, SiteData, SiteTheme } from "./types";
 
 const BLOB_PATH = "tidespool/site-data.json";
 const LOCAL_DATA_PATH = path.join(process.cwd(), "data", "site-data.json");
@@ -18,6 +18,8 @@ function normalizeSiteData(data: Partial<SiteData> | null | undefined): SiteData
   return {
     portfolio: sortPortfolio(data?.portfolio?.length ? data.portfolio : seed.portfolio),
     messages: data?.messages ?? [],
+    content: mergeContent(data?.content),
+    theme: mergeTheme(data?.theme),
   };
 }
 
@@ -111,6 +113,33 @@ export async function saveSiteData(data: SiteData): Promise<{ persisted: boolean
 export async function getPortfolioItems(): Promise<PortfolioItem[]> {
   const data = await getSiteData();
   return data.portfolio;
+}
+
+export async function getSiteContent(): Promise<SiteContent> {
+  const data = await getSiteData();
+  return data.content;
+}
+
+export async function getSiteTheme(): Promise<SiteTheme> {
+  const data = await getSiteData();
+  return data.theme;
+}
+
+export async function updateSiteSettings(settings: {
+  content?: SiteContent;
+  theme?: SiteTheme;
+}): Promise<{ persisted: boolean }> {
+  const data = await getSiteData();
+
+  if (settings.content) {
+    data.content = mergeContent(settings.content);
+  }
+
+  if (settings.theme) {
+    data.theme = mergeTheme(settings.theme);
+  }
+
+  return saveSiteData(data);
 }
 
 export async function getPortfolioItem(id: string): Promise<PortfolioItem | undefined> {

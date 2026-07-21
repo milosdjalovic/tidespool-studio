@@ -6,23 +6,29 @@ import { Hero } from "@/components/Hero";
 import { Portfolio } from "@/components/Portfolio";
 import { Process } from "@/components/Process";
 import { Services } from "@/components/Services";
-import { getPortfolioItems } from "@/lib/storage";
+import { SiteThemeStyles } from "@/components/SiteThemeStyles";
+import { getPortfolioItems, getSiteContent, getSiteTheme } from "@/lib/storage";
 
 export default async function Home() {
-  const portfolioItems = await getPortfolioItems();
+  const [portfolioItems, content, theme] = await Promise.all([
+    getPortfolioItems(),
+    getSiteContent(),
+    getSiteTheme(),
+  ]);
 
   return (
     <>
-      <Header />
+      <SiteThemeStyles theme={theme} />
+      <Header siteName={content.general.siteName} />
       <main>
-        <Hero />
-        <About />
-        <Services />
-        <Portfolio items={portfolioItems} />
-        <Process />
-        <Contact />
+        <Hero content={content.hero} />
+        <About content={content.about} />
+        <Services content={content.services} />
+        <Portfolio items={portfolioItems} content={content.portfolio} />
+        <Process content={content.process} />
+        <Contact content={content.contact} />
       </main>
-      <Footer />
+      <Footer siteName={content.general.siteName} content={content.footer} />
     </>
   );
 }

@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { CustomSelect } from "@/components/CustomSelect";
 import { Reveal } from "@/components/Reveal";
 import { SectionHeader } from "@/components/SectionHeader";
+import type { SiteContent } from "@/lib/types";
 
 const serviceOptions = [
   { value: "Promotional videos", label: "Promotional videos" },
@@ -13,10 +14,15 @@ const serviceOptions = [
   { value: "Not sure yet", label: "Not sure yet" },
 ];
 
-export function Contact() {
+type ContactProps = {
+  content: SiteContent["contact"];
+};
+
+export function Contact({ content }: ContactProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [service, setService] = useState("");
+  const phoneDigits = content.phone.replace(/\D/g, "");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,9 +65,9 @@ export function Contact() {
         <div>
           <Reveal>
             <SectionHeader
-              label="Contact"
-              title="Start your project"
-              description="Tell us about your idea and we'll follow up with availability, timeline, and next steps."
+              label={content.label}
+              title={content.title}
+              description={content.description}
             />
           </Reveal>
 
@@ -71,23 +77,23 @@ export function Contact() {
                 <span className="rounded-lg bg-surface-warm p-3 text-accent-warm">
                   <Mail size={18} />
                 </span>
-                <a href="mailto:Stefan@tidespool.studio" className="link-underline">
-                  Stefan@tidespool.studio
+                <a href={`mailto:${content.email}`} className="link-underline">
+                  {content.email}
                 </a>
               </div>
               <div className="flex items-center gap-4 text-muted">
                 <span className="rounded-lg bg-surface-warm p-3 text-accent-warm">
                   <Phone size={18} />
                 </span>
-                <a href="tel:+17603337844" className="link-underline">
-                  760-333-7844
+                <a href={`tel:+1${phoneDigits}`} className="link-underline">
+                  {content.phone}
                 </a>
               </div>
               <div className="flex items-center gap-4 text-muted">
                 <span className="rounded-lg bg-surface-warm p-3 text-accent-warm">
                   <MapPin size={18} />
                 </span>
-                <span>Available for local and destination projects</span>
+                <span>{content.location}</span>
               </div>
             </div>
           </Reveal>

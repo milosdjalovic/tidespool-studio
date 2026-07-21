@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { SectionHeader } from "@/components/SectionHeader";
-import type { PortfolioItem } from "@/lib/types";
+import type { PortfolioItem, SiteContent } from "@/lib/types";
 
 const filters = [
   { id: "all", label: "All work" },
@@ -25,7 +25,13 @@ function getEmbedUrl(url: string): string {
   return url;
 }
 
-export function Portfolio({ items }: { items: PortfolioItem[] }) {
+export function Portfolio({
+  items,
+  content,
+}: {
+  items: PortfolioItem[];
+  content: SiteContent["portfolio"];
+}) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [activeItem, setActiveItem] = useState<PortfolioItem | null>(null);
 
@@ -42,9 +48,9 @@ export function Portfolio({ items }: { items: PortfolioItem[] }) {
         <Reveal>
           <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <SectionHeader
-              label="Portfolio"
-              title="Selected work"
-              description="Browse recent video and photography projects. Click any piece to view it in full."
+              label={content.label}
+              title={content.title}
+              description={content.description}
             />
             <div className="flex flex-wrap gap-2">
               {filters.map((entry) => (
