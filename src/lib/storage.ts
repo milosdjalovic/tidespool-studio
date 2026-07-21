@@ -9,6 +9,16 @@ const LOCAL_DATA_PATH = path.join(process.cwd(), "data", "site-data.json");
 
 let memoryCache: SiteData | null = null;
 
+function getBlobClientOptions() {
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  const storeId = process.env.BLOB_STORE_ID?.trim();
+
+  return {
+    ...(token ? { token } : {}),
+    ...(storeId ? { storeId } : {}),
+  };
+}
+
 function sortPortfolio(items: PortfolioItem[]): PortfolioItem[] {
   return [...items].sort((a, b) => a.order - b.order || b.createdAt.localeCompare(a.createdAt));
 }
@@ -66,7 +76,7 @@ async function readBlobData(): Promise<SiteData | null> {
   }
 
   try {
-    const blobMeta = await head(BLOB_PATH);
+    const blobMeta = await head(BLOB_PATH, getBlobClientOptions());
     const response = await fetch(blobMeta.url, { cache: "no-store" });
 
     if (!response.ok) {
@@ -84,7 +94,7 @@ async function readBlobData(): Promise<SiteData | null> {
 
 async function blobStoreExists(): Promise<boolean> {
   try {
-    await head(BLOB_PATH);
+    await head(BLOB_PATH, getBlobClientOptions());
     return true;
   } catch (error) {
     if (isBlobNotFoundError(error)) {
@@ -100,7 +110,7 @@ async function testBlobConnection(): Promise<{ ok: boolean; error?: string }> {
   }
 
   try {
-    await list({ prefix: "tidespool/", limit: 1 });
+    await list({ prefix: "tidespool/", limit: 1, ...getBlobClientOptions() });
     return { ok: true };
   } catch (error) {
     return {
@@ -110,9 +120,9 @@ async function testBlobConnection(): Promise<{ ok: boolean; error?: string }> {
   }
 }
 
-async function writeBlobData(data: SiteData): Promise<boolean> {
+async function writeBlobData(data: SiteData): Promise<{ ok: boolean; error?: string }> {
   if (!isRunningOnVercel() && !hasBlobEnvConfigured()) {
-    return false;
+    return { ok: false, error: "Blob storage is not configured." };
   }
 
   try {
@@ -121,12 +131,16 @@ async function writeBlobData(data: SiteData): Promise<boolean> {
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
+      ...getBlobClientOptions(),
     });
 
     memoryCache = data;
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unable to write to Vercel Blob",
+    };
   }
 }
 
@@ -151,13 +165,13 @@ export async function getSiteData(): Promise<SiteData> {
   return localData;
 }
 
-export async function saveSiteData(data: SiteData): Promise<{ persisted: boolean }> {
+export async function saveSiteData(data: SiteData): Promise<{ persisted: boolean; saveError?: string }> {
   const normalized = normalizeSiteData(data);
   memoryCache = normalized;
 
   if (isRunningOnVercel()) {
-    const persisted = await writeBlobData(normalized);
-    return { persisted };
+    const result = await writeBlobData(normalized);
+    return { persisted: result.ok, saveError: result.error };
   }
 
   await writeLocalData(normalized);
@@ -224,7 +238,7 @@ export async function getSiteTheme(): Promise<SiteTheme> {
 export async function updateSiteSettings(settings: {
   content?: SiteContent;
   theme?: SiteTheme;
-}): Promise<{ persisted: boolean }> {
+}): Promise<{ persisted: boolean; saveError?: string }> {
   const data = await getSiteData();
 
   if (settings.content) {

@@ -111,7 +111,7 @@ export function mergeContent(content?: Partial<SiteContent> | null): SiteContent
     return structuredClone(defaultContent);
   }
 
-  return {
+  const merged: SiteContent = {
     general: { ...defaultContent.general, ...content.general },
     hero: { ...defaultContent.hero, ...content.hero },
     about: {
@@ -139,6 +139,22 @@ export function mergeContent(content?: Partial<SiteContent> | null): SiteContent
     contact: { ...defaultContent.contact, ...content.contact },
     footer: { ...defaultContent.footer, ...content.footer },
   };
+
+  merged.about.highlights = padArray(merged.about.highlights, defaultContent.about.highlights, 4);
+  merged.services.items = padArray(merged.services.items, defaultContent.services.items, 3);
+  merged.process.steps = padArray(merged.process.steps, defaultContent.process.steps, 4);
+
+  return merged;
+}
+
+function padArray<T>(items: T[], fallback: T[], length: number): T[] {
+  const padded = [...items];
+
+  while (padded.length < length) {
+    padded.push(fallback[padded.length] ?? fallback[fallback.length - 1]);
+  }
+
+  return padded.slice(0, length);
 }
 
 export function mergeTheme(theme?: Partial<SiteTheme> | null): SiteTheme {

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
+import { mergeContent, mergeTheme } from "@/lib/default-content";
 import { getSiteContent, getSiteData, getSiteTheme, getStorageStatus, updateSiteSettings } from "@/lib/storage";
 import { z } from "zod";
+
+const imageUrlSchema = z.string().min(1).max(500);
 
 const highlightSchema = z.object({
   label: z.string().min(1).max(60),
@@ -28,20 +31,20 @@ const contentSchema = z.object({
     description: z.string().min(1).max(500),
     primaryButton: z.string().min(1).max(40),
     secondaryButton: z.string().min(1).max(40),
-    backgroundImage: z.string().url(),
+    backgroundImage: imageUrlSchema,
   }),
   about: z.object({
     label: z.string().min(1).max(40),
     title: z.string().min(1).max(120),
     description: z.string().min(1).max(1000),
-    imageUrl: z.string().min(1).max(500),
-    highlights: z.array(highlightSchema).length(4),
+    imageUrl: imageUrlSchema,
+    highlights: z.array(highlightSchema).min(4).max(4),
   }),
   services: z.object({
     label: z.string().min(1).max(40),
     title: z.string().min(1).max(120),
     description: z.string().min(1).max(300),
-    items: z.array(serviceItemSchema).length(3),
+    items: z.array(serviceItemSchema).min(3).max(3),
   }),
   portfolio: z.object({
     label: z.string().min(1).max(40),
@@ -60,7 +63,7 @@ const contentSchema = z.object({
     label: z.string().min(1).max(40),
     title: z.string().min(1).max(120),
     description: z.string().min(1).max(300),
-    steps: z.array(processStepSchema).length(4),
+    steps: z.array(processStepSchema).min(4).max(4),
   }),
   footer: z.object({
     description: z.string().min(1).max(200),
@@ -83,6 +86,44 @@ const settingsSchema = z.object({
   theme: themeSchema.optional(),
 });
 
+function formatValidationError(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) {
+    return "Invalid settings data";
+  }
+
+  const field = issue.path.length ? issue.path.join(".") : "settings";
+  return `${field}: ${issue.message}`;
+}
+
+async function safeStorageStatus() {
+  try {
+    return await getStorageStatus();
+  } catch (error) {
+    return {
+      environment: "vercel" as const,
+      backend: "memory-only" as const,
+      persistent: false,
+      blobEnvConfigured: hasBlobEnvConfiguredFallback(),
+      blobConnectionOk: false,
+      hasStoredData: false,
+      blobPath: "tidespool/site-data.json",
+      message:
+        error instanceof Error
+          ? `Storage check failed: ${error.message}`
+          : "Storage check failed.",
+    };
+  }
+}
+
+function hasBlobEnvConfiguredFallback(): boolean {
+  return Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN ||
+      process.env.BLOB_STORE_ID ||
+      process.env.VERCEL_OIDC_TOKEN,
+  );
+}
+
 export async function GET() {
   const authenticated = await isAdminAuthenticated();
 
@@ -94,7 +135,7 @@ export async function GET() {
     getSiteContent(),
     getSiteTheme(),
     getSiteData(),
-    getStorageStatus(),
+    safeStorageStatus(),
   ]);
 
   return NextResponse.json({
@@ -114,23 +155,49 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const payload = settingsSchema.parse(await request.json());
+    const raw = (await request.json()) as {
+      content?: Parameters<typeof mergeContent>[0];
+      theme?: Parameters<typeof mergeTheme>[0];
+    };
+
+    const payload = settingsSchema.parse({
+      content: raw.content ? mergeContent(raw.content) : undefined,
+      theme: raw.theme ? mergeTheme(raw.theme) : undefined,
+    });
+
     const result = await updateSiteSettings(payload);
 
     const [content, theme, storage] = await Promise.all([
       getSiteContent(),
       getSiteTheme(),
-      getStorageStatus(),
+      safeStorageStatus(),
     ]);
 
-    return NextResponse.json({ content, theme, storage, ...result });
+    return NextResponse.json({
+      content,
+      theme,
+      storage,
+      ...result,
+      warning: result.persisted
+        ? undefined
+        : result.saveError ||
+          "Saved in memory only. Connect Vercel Blob storage and redeploy for permanent saves.",
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.issues[0]?.message || "Invalid settings data" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: formatValidationError(error) }, { status: 400 });
     }
-    return NextResponse.json({ error: "Unable to save settings" }, { status: 500 });
+
+    console.error("Settings save failed:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error && error.message
+            ? error.message
+            : "Unable to save settings",
+      },
+      { status: 500 },
+    );
   }
 }
