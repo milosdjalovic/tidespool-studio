@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { addContactMessage } from "@/lib/storage";
 import { z } from "zod";
 
+export const runtime = "nodejs";
+
 const contactSchema = z.object({
   name: z.string().min(2).max(80),
   email: z.string().email(),

@@ -6,6 +6,7 @@ import type { ContactMessage, PortfolioItem, SiteContent, SiteData, SiteTheme } 
 
 const BLOB_PATH = "tidespool/site-data.json";
 const BLOB_ACCESS = "private" as const;
+const STORAGE_VERSION = "private-store-v3";
 const LOCAL_DATA_PATH = path.join(process.cwd(), "data", "site-data.json");
 
 let memoryCache: SiteData | null = null;
@@ -20,6 +21,25 @@ function getBlobClientOptions(): { token?: string; storeId?: string } {
 
   const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
   return token ? { token } : {};
+}
+
+function getPrivateBlobCommandOptions() {
+  const client = getBlobClientOptions();
+
+  return {
+    ...(client.token ? { token: client.token } : {}),
+    ...(client.storeId ? { storeId: client.storeId } : {}),
+    access: BLOB_ACCESS,
+  };
+}
+
+function getPrivateBlobPutOptions() {
+  return {
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+    ...getPrivateBlobCommandOptions(),
+  };
 }
 
 function getBlobEnvHints() {
@@ -89,9 +109,8 @@ async function readBlobData(): Promise<SiteData | null> {
 
   try {
     const result = await get(BLOB_PATH, {
-      access: BLOB_ACCESS,
       useCache: false,
-      ...getBlobClientOptions(),
+      ...getPrivateBlobCommandOptions(),
     });
 
     if (!result || result.statusCode !== 200 || !result.stream) {
@@ -142,13 +161,7 @@ async function testBlobWrite(): Promise<{ ok: boolean; error?: string }> {
   }
 
   try {
-    await put(`${BLOB_PATH}.write-test`, JSON.stringify({ ok: true, at: Date.now() }), {
-      access: BLOB_ACCESS,
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-      ...getBlobClientOptions(),
-    });
+    await put(`${BLOB_PATH}.write-test`, JSON.stringify({ ok: true, at: Date.now() }), getPrivateBlobPutOptions());
     return { ok: true };
   } catch (error) {
     return {
@@ -164,13 +177,7 @@ async function writeBlobData(data: SiteData): Promise<{ ok: boolean; error?: str
   }
 
   try {
-    await put(BLOB_PATH, JSON.stringify(data), {
-      access: BLOB_ACCESS,
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-      ...getBlobClientOptions(),
-    });
+    await put(BLOB_PATH, JSON.stringify(data), getPrivateBlobPutOptions());
 
     memoryCache = data;
     return { ok: true };
@@ -231,6 +238,8 @@ export async function getStorageStatus() {
       environment: "vercel" as const,
       backend: persistent ? ("vercel-blob" as const) : ("memory-only" as const),
       persistent,
+      storageVersion: STORAGE_VERSION,
+      blobAccess: BLOB_ACCESS,
       blobEnvConfigured,
       blobConnectionOk: connection.ok,
       blobWriteOk: writeAccess.ok,
@@ -256,6 +265,8 @@ export async function getStorageStatus() {
     environment: "local" as const,
     backend: "local-file" as const,
     persistent: true,
+    storageVersion: STORAGE_VERSION,
+    blobAccess: BLOB_ACCESS,
     blobEnvConfigured,
     blobConnectionOk: true,
     blobWriteOk: true,

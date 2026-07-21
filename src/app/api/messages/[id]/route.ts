@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { deleteContactMessage, getSiteData, markMessageRead } from "@/lib/storage";
 
+export const runtime = "nodejs";
+
 type RouteContext = {
   params: Promise<{ id: string }>;
 };

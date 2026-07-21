@@ -3,6 +3,8 @@ import { deletePortfolioItem, getPortfolioItem, upsertPortfolioItem } from "@/li
 import { z } from "zod";
 import type { PortfolioCategory, PortfolioMediaType } from "@/lib/types";
 
+export const runtime = "nodejs";
+
 const portfolioSchema = z.object({
   title: z.string().min(1).max(120),
   description: z.string().min(1).max(500),
