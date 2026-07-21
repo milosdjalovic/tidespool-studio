@@ -37,6 +37,7 @@ export default function AdminDashboardPage() {
   const [content, setContent] = useState<SiteContent | null>(null);
   const [theme, setTheme] = useState<SiteTheme | null>(null);
   const [storageConfigured, setStorageConfigured] = useState(true);
+  const [storageMessage, setStorageMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -67,6 +68,7 @@ export default function AdminDashboardPage() {
       setContent(settingsData.content);
       setTheme(settingsData.theme);
       setStorageConfigured(Boolean(settingsData.storageConfigured));
+      setStorageMessage(settingsData.storage?.message || "");
     } catch {
       setError("Unable to load dashboard.");
     } finally {
@@ -93,7 +95,9 @@ export default function AdminDashboardPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Save failed.");
       setContent(data.content);
-      setSuccess("Website text saved.");
+      setStorageConfigured(Boolean(data.storage?.persistent));
+      setStorageMessage(data.storage?.message || "");
+      setSuccess(data.persisted ? "Website text saved." : "Saved in memory only — Blob storage is not active.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Save failed.");
     } finally {
@@ -116,7 +120,9 @@ export default function AdminDashboardPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Save failed.");
       setTheme(data.theme);
-      setSuccess("Colors saved.");
+      setStorageConfigured(Boolean(data.storage?.persistent));
+      setStorageMessage(data.storage?.message || "");
+      setSuccess(data.persisted ? "Colors saved." : "Saved in memory only — Blob storage is not active.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Save failed.");
     } finally {
@@ -225,7 +231,11 @@ export default function AdminDashboardPage() {
 
         {!storageConfigured ? (
           <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Storage not connected — changes may reset after redeploy. Enable Vercel Blob in your Vercel project.
+            {storageMessage || "Storage not connected — changes may reset after redeploy. Enable Vercel Blob in your Vercel project."}
+          </div>
+        ) : storageMessage ? (
+          <div className="mt-6 rounded-lg border border-line bg-surface-warm px-4 py-3 text-sm text-muted">
+            {storageMessage}
           </div>
         ) : null}
 

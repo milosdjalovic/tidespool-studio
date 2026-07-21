@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
-import { getSiteContent, getSiteData, getSiteTheme, updateSiteSettings } from "@/lib/storage";
+import { getSiteContent, getSiteData, getSiteTheme, getStorageStatus, updateSiteSettings } from "@/lib/storage";
 import { z } from "zod";
 
 const highlightSchema = z.object({
@@ -90,17 +90,19 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [content, theme, data] = await Promise.all([
+  const [content, theme, data, storage] = await Promise.all([
     getSiteContent(),
     getSiteTheme(),
     getSiteData(),
+    getStorageStatus(),
   ]);
 
   return NextResponse.json({
     content,
     theme,
     messages: data.messages,
-    storageConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN) || !process.env.VERCEL,
+    storage,
+    storageConfigured: storage.persistent,
   });
 }
 
@@ -115,9 +117,13 @@ export async function PUT(request: Request) {
     const payload = settingsSchema.parse(await request.json());
     const result = await updateSiteSettings(payload);
 
-    const [content, theme] = await Promise.all([getSiteContent(), getSiteTheme()]);
+    const [content, theme, storage] = await Promise.all([
+      getSiteContent(),
+      getSiteTheme(),
+      getStorageStatus(),
+    ]);
 
-    return NextResponse.json({ content, theme, ...result });
+    return NextResponse.json({ content, theme, storage, ...result });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

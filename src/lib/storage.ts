@@ -1,4 +1,4 @@
-import { head, put } from "@vercel/blob";
+import { head, list, put } from "@vercel/blob";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { getEmptySiteData, getSeedPortfolio, mergeContent, mergeTheme } from "./seed";
@@ -23,6 +23,28 @@ function normalizeSiteData(data: Partial<SiteData> | null | undefined): SiteData
   };
 }
 
+function isRunningOnVercel(): boolean {
+  return Boolean(process.env.VERCEL);
+}
+
+/** Vercel Blob can auth via OIDC (BLOB_STORE_ID) or BLOB_READ_WRITE_TOKEN */
+function hasBlobEnvConfigured(): boolean {
+  return Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN ||
+      process.env.BLOB_STORE_ID ||
+      process.env.VERCEL_OIDC_TOKEN,
+  );
+}
+
+function isBlobNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return message.includes("not found") || message.includes("does not exist");
+}
+
 async function readLocalData(): Promise<SiteData> {
   try {
     const raw = await readFile(LOCAL_DATA_PATH, "utf-8");
@@ -39,7 +61,7 @@ async function writeLocalData(data: SiteData): Promise<void> {
 }
 
 async function readBlobData(): Promise<SiteData | null> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!isRunningOnVercel() && !hasBlobEnvConfigured()) {
     return null;
   }
 
@@ -52,25 +74,60 @@ async function readBlobData(): Promise<SiteData | null> {
     }
 
     return normalizeSiteData((await response.json()) as SiteData);
-  } catch {
+  } catch (error) {
+    if (isBlobNotFoundError(error)) {
+      return null;
+    }
     return null;
   }
 }
 
+async function blobStoreExists(): Promise<boolean> {
+  try {
+    await head(BLOB_PATH);
+    return true;
+  } catch (error) {
+    if (isBlobNotFoundError(error)) {
+      return false;
+    }
+    return false;
+  }
+}
+
+async function testBlobConnection(): Promise<{ ok: boolean; error?: string }> {
+  if (!isRunningOnVercel()) {
+    return { ok: true };
+  }
+
+  try {
+    await list({ prefix: "tidespool/", limit: 1 });
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unable to connect to Vercel Blob",
+    };
+  }
+}
+
 async function writeBlobData(data: SiteData): Promise<boolean> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!isRunningOnVercel() && !hasBlobEnvConfigured()) {
     return false;
   }
 
-  await put(BLOB_PATH, JSON.stringify(data), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-  });
+  try {
+    await put(BLOB_PATH, JSON.stringify(data), {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+    });
 
-  memoryCache = data;
-  return true;
+    memoryCache = data;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getSiteData(): Promise<SiteData> {
@@ -84,7 +141,7 @@ export async function getSiteData(): Promise<SiteData> {
     return blobData;
   }
 
-  if (process.env.VERCEL) {
+  if (isRunningOnVercel()) {
     memoryCache = getEmptySiteData();
     return memoryCache;
   }
@@ -96,18 +153,57 @@ export async function getSiteData(): Promise<SiteData> {
 
 export async function saveSiteData(data: SiteData): Promise<{ persisted: boolean }> {
   const normalized = normalizeSiteData(data);
+  memoryCache = normalized;
 
-  if (process.env.VERCEL) {
+  if (isRunningOnVercel()) {
     const persisted = await writeBlobData(normalized);
-    if (!persisted) {
-      memoryCache = normalized;
-      return { persisted: false };
-    }
-    return { persisted: true };
+    return { persisted };
   }
 
   await writeLocalData(normalized);
   return { persisted: true };
+}
+
+export async function getStorageStatus() {
+  const onVercel = isRunningOnVercel();
+  const blobEnvConfigured = hasBlobEnvConfigured();
+  const connection = onVercel ? await testBlobConnection() : { ok: true };
+  const hasStoredData = onVercel && connection.ok ? await blobStoreExists() : !onVercel;
+
+  if (onVercel) {
+    const persistent = connection.ok;
+
+    return {
+      environment: "vercel" as const,
+      backend: persistent ? ("vercel-blob" as const) : ("memory-only" as const),
+      persistent,
+      blobEnvConfigured,
+      blobConnectionOk: connection.ok,
+      hasStoredData,
+      blobPath: BLOB_PATH,
+      connectionError: connection.error,
+      message: persistent
+        ? hasStoredData
+          ? "Connected to Vercel Blob. Your saved CMS data is stored permanently."
+          : "Blob is connected. Save something in the admin panel once to create the storage file."
+        : connection.error
+          ? `Blob connection failed: ${connection.error}`
+          : blobEnvConfigured
+            ? "Blob env vars found but connection failed. Check that Blob is connected to this project, then redeploy."
+            : "Blob not configured. Connect Blob in Vercel → Storage, then redeploy.",
+    };
+  }
+
+  return {
+    environment: "local" as const,
+    backend: "local-file" as const,
+    persistent: true,
+    blobEnvConfigured,
+    blobConnectionOk: true,
+    hasStoredData: true,
+    blobPath: LOCAL_DATA_PATH,
+    message: "Local development uses data/site-data.json on your computer.",
+  };
 }
 
 export async function getPortfolioItems(): Promise<PortfolioItem[]> {
