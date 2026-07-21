@@ -4,6 +4,8 @@ import { mergeContent, mergeTheme } from "@/lib/default-content";
 import { getSiteContent, getSiteData, getSiteTheme, getStorageStatus, updateSiteSettings } from "@/lib/storage";
 import { z } from "zod";
 
+export const runtime = "nodejs";
+
 const imageUrlSchema = z.string().min(1).max(500);
 
 const highlightSchema = z.object({

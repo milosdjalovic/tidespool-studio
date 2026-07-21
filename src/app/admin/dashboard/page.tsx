@@ -97,11 +97,16 @@ export default function AdminDashboardPage() {
       setContent(data.content);
       setStorageConfigured(Boolean(data.storage?.persistent));
       setStorageMessage(data.storage?.message || "");
-      if (data.warning) {
-        setError(data.warning);
-        setSuccess("Changes updated in this session.");
+      if (data.persisted) {
+        setSuccess("Website text saved.");
       } else {
-        setSuccess(data.persisted ? "Website text saved." : "Saved in memory only — Blob storage is not active.");
+        setSuccess("Changes updated in this session.");
+        setError(
+          data.warning ||
+            data.saveError ||
+            data.storage?.connectionError ||
+            "Saved in memory only — Blob storage is not active.",
+        );
       }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Save failed.");
@@ -127,11 +132,16 @@ export default function AdminDashboardPage() {
       setTheme(data.theme);
       setStorageConfigured(Boolean(data.storage?.persistent));
       setStorageMessage(data.storage?.message || "");
-      if (data.warning) {
-        setError(data.warning);
-        setSuccess("Changes updated in this session.");
+      if (data.persisted) {
+        setSuccess("Colors saved.");
       } else {
-        setSuccess(data.persisted ? "Colors saved." : "Saved in memory only — Blob storage is not active.");
+        setSuccess("Changes updated in this session.");
+        setError(
+          data.warning ||
+            data.saveError ||
+            data.storage?.connectionError ||
+            "Saved in memory only — Blob storage is not active.",
+        );
       }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Save failed.");
